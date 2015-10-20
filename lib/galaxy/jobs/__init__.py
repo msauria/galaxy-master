@@ -289,9 +289,8 @@ class JobConfiguration( object ):
         """
         log.debug('Loading job configuration from %s' % self.app.config.config_file)
 
-        # Always load local and lwr
-        self.runner_plugins = [dict(id='local', load='local', workers=self.app.config.local_job_queue_workers),
-                               dict(id='lwr', load='lwr', workers=self.app.config.cluster_job_queue_workers)]
+        # Always load local
+        self.runner_plugins = [dict(id='local', load='local', workers=self.app.config.local_job_queue_workers)]
         # Load tasks if configured
         if self.app.config.use_tasked_jobs:
             self.runner_plugins.append(dict(id='tasks', load='tasks', workers=self.app.config.local_task_queue_workers))
@@ -1323,14 +1322,14 @@ class JobWrapper( object ):
                              tool=self.tool, stdout=job.stdout, stderr=job.stderr )
         job.command_line = self.command_line
 
-        bytes = 0
+        collected_bytes = 0
         # Once datasets are collected, set the total dataset size (includes extra files)
         for dataset_assoc in job.output_datasets:
             dataset_assoc.dataset.dataset.set_total_size()
-            bytes += dataset_assoc.dataset.dataset.get_total_size()
+            collected_bytes += dataset_assoc.dataset.dataset.get_total_size()
 
         if job.user:
-            job.user.total_disk_usage += bytes
+            job.user.adjust_total_disk_usage(collected_bytes)
 
         # Empirically, we need to update job.user and
         # job.workflow_invocation_step.workflow_invocation in separate

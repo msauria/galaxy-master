@@ -44,6 +44,9 @@ define(['utils/utils', 'utils/deferred', 'mvc/ui/ui-misc', 'mvc/form/form-view',
                 }
             }, this.options);
 
+            // allow option customization
+            this.options.customize && this.options.customize( this.options );
+
             // create form
             this.form = new Form(this.options);
 
@@ -58,27 +61,20 @@ define(['utils/utils', 'utils/deferred', 'mvc/ui/ui-misc', 'mvc/form/form-view',
         /** Builds a new model through api call and recreates the entire form
         */
         _buildModel: function(options, hide_message) {
-            // link this
             var self = this;
-
-            // update current version
             this.options.id = options.id;
             this.options.version = options.version;
 
-            if (options.job_id) {
+            // build request url
+            var build_url = '';
+            var build_data = {};
+            if ( options.job_id ) {
                 build_url = Galaxy.root + 'api/jobs/' + options.job_id + '/build_for_rerun';
             } else {
-                // construct url
-                var build_url = Galaxy.root + 'api/tools/' + options.id + '/build?';
-                if (options.dataset_id) {
-                    build_url += 'dataset_id=' + options.dataset_id;
-                } else {
-                    build_url += 'tool_version=' + options.version + '&';
-                    var loc = top.location.href;
-                    var pos = loc.indexOf('?');
-                    if (loc.indexOf('tool_id=') != -1 && pos !== -1) {
-                        build_url += loc.slice(pos + 1);
-                    }
+                build_url = Galaxy.root + 'api/tools/' + options.id + '/build';
+                if ( Galaxy.params && Galaxy.params.tool_id == options.id ) {
+                    build_data = $.extend( {}, Galaxy.params );
+                    options.version && ( build_data[ 'tool_version' ] = options.version );
                 }
             }
 
@@ -89,6 +85,7 @@ define(['utils/utils', 'utils/deferred', 'mvc/ui/ui-misc', 'mvc/form/form-view',
             Utils.request({
                 type    : 'GET',
                 url     : build_url,
+                data    : build_data,
                 success : function(new_model) {
                     // rebuild form
                     self._buildForm(new_model['tool_model'] || new_model);
@@ -116,19 +113,25 @@ define(['utils/utils', 'utils/deferred', 'mvc/ui/ui-misc', 'mvc/form/form-view',
                     console.debug(response);
 
                     // show error
-                    var error_message = response.error || response.err_msg || 'Uncaught error.';
-                    if (self.form == undefined){
-                        self.form = new Form();
-                    }
-                    Galaxy.modal.show({
-                        title   : 'Tool cannot be executed',
-                        body    : error_message,
-                        buttons : {
-                            'Close' : function() {
-                                Galaxy.modal.hide();
+                    var error_message = ( response && response.err_msg ) || 'Uncaught error.';
+                    if ( self.$el.is(':empty') ) {
+                        self.$el.prepend((new Ui.Message({
+                            message     : error_message,
+                            status      : 'danger',
+                            persistent  : true,
+                            large       : true
+                        })).$el);
+                    } else {
+                        Galaxy.modal.show({
+                            title   : 'Tool request failed',
+                            body    : error_message,
+                            buttons : {
+                                'Close' : function() {
+                                    Galaxy.modal.hide();
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
                 }
             });
         },
